@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wazuh IOC Console</title>
+<style>
+html{color-scheme:dark}
+:root{--bg:#11161C;--p:#181F27;--p2:#1F2833;--ln:#2B3640;--tx:#E8EEF3;--mu:#9AABBA;--ac:#4DA3FF;--c:#F0616D;--hi:#F5A25D;--md:#E8CB55;--lo:#5CA8F5;padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.4 "Segoe UI",system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+button,input,select{font:inherit;color:var(--tx);background:var(--p2);border:1px solid var(--ln);border-radius:4px;min-height:32px;padding:0 10px}
+button{cursor:pointer}button:hover{border-color:var(--ac)}button.pri{background:var(--ac);border-color:var(--ac);color:#04121F;font-weight:600}
+.top{height:48px;display:flex;align-items:center;gap:14px;padding:0 16px;background:#0B0F14;border-bottom:1px solid var(--ln);flex:none}
+.top b{font-size:14px;white-space:nowrap}.top .sp{flex:1}.top input{width:min(420px,40vw)}.mu{color:var(--mu)}
+.app{flex:1;display:flex;min-height:0}
+.rail{width:190px;background:#0F141A;border-right:1px solid var(--ln);padding:8px 0;flex:none}
+.rail a{display:flex;align-items:center;gap:10px;padding:0 16px;height:40px;color:var(--mu);text-decoration:none}
+.rail a:hover{background:var(--p)}.rail a.on{color:var(--tx);background:var(--p2);box-shadow:inset 3px 0 0 var(--ac)}
+.rail svg{flex:none}.view{flex:1;overflow:auto;padding:16px 20px;min-width:0}
+h1{font-size:18px;margin:0 0 2px;font-weight:600}h2{font-size:13px;margin:0;font-weight:600}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}
+.tile,.pn{background:var(--p);border:1px solid var(--ln);border-radius:4px}
+.tile{padding:12px 14px}.tile b{display:block;font-size:28px;font-weight:600;margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}
+.pn{padding:12px 14px;min-width:0}.pn>h2{margin-bottom:10px;display:flex;justify-content:space-between}
+.s12{grid-column:span 12}.s8{grid-column:span 8}.s4{grid-column:span 4}.s6{grid-column:span 6}
+@media(max-width:1000px){.s8,.s4,.s6{grid-column:span 12}.rail{width:52px}.rail span{display:none}.rail a{padding:0 16px}}
+.sev{display:inline-block;min-width:62px;text-align:center;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:700;color:#0B0F14}
+.critical{background:var(--c)}.high{background:var(--hi)}.medium{background:var(--md)}.low{background:var(--lo)}
+.tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.chip{border-radius:14px;min-height:28px;padding:0 12px}.chip.on{background:var(--ac);color:#04121F;border-color:var(--ac);font-weight:600}
+.tw{overflow:auto;border:1px solid var(--ln);border-radius:4px;background:var(--p)}
+table{width:100%;border-collapse:collapse;min-width:900px}th{position:sticky;top:0;background:var(--p2);text-align:left;font-weight:600;color:var(--mu);font-size:12px}
+th,td{padding:7px 10px;border-bottom:1px solid #222C36;white-space:nowrap}tr.r{cursor:pointer}tr.r:hover td,tr.sel td{background:#1C2631}
+.m{font-family:Consolas,ui-monospace,monospace}.bar{height:6px;background:#0B0F14;border-radius:3px;width:70px;display:inline-block;vertical-align:middle}.bar i{display:block;height:6px;border-radius:3px;background:var(--ac)}
+.drw{position:fixed;right:0;top:calc(48px + env(safe-area-inset-top,0px));bottom:0;width:min(440px,100%);background:var(--p);border-left:1px solid var(--ln);padding:16px;overflow:auto;display:none;flex-direction:column;gap:12px;z-index:5}
+.drw.open{display:flex}.box{background:var(--bg);border:1px solid var(--ln);border-radius:4px;padding:10px 12px}
+.row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid #222C36}.row:last-child{border:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap}.acts button{flex:1 1 110px}
+</style></head><body>
+<div class="top"><b>Wazuh IOC Console</b><span class="mu" id="ws">Workspace: default</span><span class="sp"></span>
+<input id="gq" type="search" aria-label="Search" placeholder="Search indicator, agent, rule">
+<select id="rng" aria-label="Time range"><option value="24">Last 24 hours</option><option value="168">Last 7 days</option><option value="0">All time</option></select>
+<button id="poll" class="pri">Poll Wazuh</button><span class="mu" id="sync"></span></div>
+<div class="app">
+<nav class="rail" aria-label="Main">
+<a href="#overview" id="n-overview"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span>Overview</span></a>
+<a href="#indicators" id="n-indicators"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span>Indicators</span></a>
+</nav>
+<main class="view" id="view"></main></div>
+<aside class="drw" id="drw" aria-label="Indicator details"></aside>
+<script>
+async function api(p,o){const r=await fetch(p,o);if(!r.ok)throw new Error(r.status);return r.json()}
+
+const $=i=>document.getElementById(i),SEV=['critical','high','medium','low'],COL={critical:'#F0616D',high:'#F5A25D',medium:'#E8CB55',low:'#5CA8F5'};
+const h=(t,a,...k)=>{const e=document.createElement(t);for(const[x,v]of Object.entries(a||{}))x==='class'?e.className=v:x==='style'?e.style.cssText=v:x.startsWith('on')?e[x]=v:e.setAttribute(x,v);k.flat().forEach(c=>c!=null&&e.append(c));return e};
+const NS='http://www.w3.org/2000/svg',s=(t,a,...k)=>{const e=document.createElementNS(NS,t);for(const[x,v]of Object.entries(a||{}))e.setAttribute(x,v);k.forEach(c=>e.append(c));return e};
+let all=[],sel=null,checked=new Set(),F={sev:new Set(),status:'open',type:'',q:''};
+const win=()=>{const hr=+$('rng').value;return all.filter(r=>(!hr||Date.now()-new Date(r.last_seen)<hr*36e5))};
+const sev=r=>h('span',{class:'sev '+r.severity},r.severity.toUpperCase());
+async function load(){all=await api('/api/iocs?q=&severity=&status=');$('sync').textContent=new Date().toLocaleTimeString();render()}
+function render(){const v=location.hash==='#indicators'?'indicators':'overview';
+ $('n-overview').className=v==='overview'?'on':'';$('n-indicators').className=v==='indicators'?'on':'';
+ $('view').replaceChildren(v==='overview'?overview():indicators());drawer()}
+function kpi(l,n,c){return h('div',{class:'tile'},h('span',{class:'mu'},l),h('b',{style:c?'color:'+c:''},String(n)))}
+function overview(){const d=win(),cnt=k=>d.filter(r=>r.severity===k).length;
+ const open=d.filter(r=>r.status==='open'),agents=new Set(d.map(r=>r.agent));
+ const top=(f)=>{const m={};d.forEach(r=>f(r).forEach(x=>x&&(m[x]=(m[x]||0)+1)));return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,6)};
+ const bars=(rows)=>{const mx=Math.max(1,...rows.map(r=>r[1]));return h('div',{},rows.length?rows.map(([n,c])=>h('div',{style:'display:grid;grid-template-columns:130px 1fr 34px;gap:8px;align-items:center;margin:6px 0'},h('span',{class:'m',style:'overflow:hidden;text-overflow:ellipsis'},n),h('span',{class:'bar',style:'width:100%'},h('i',{style:`width:${c/mx*100}%`})),h('span',{class:'mu'},String(c)))):h('span',{class:'mu'},'No data'))};
+ return h('div',{},h('h1',{},'Overview'),h('div',{class:'mu'},'Indicators extracted from Wazuh alerts and judged by AI'),
+ h('div',{class:'kpis'},kpi('Total indicators',d.length),kpi('Critical',cnt('critical'),COL.critical),kpi('High',cnt('high'),COL.high),kpi('AI-confirmed malicious',d.filter(r=>r.verdict==='malicious'&&r.confidence>=80).length),kpi('Open / untriaged',open.length),kpi('Agents affected',agents.size)),
+ h('div',{class:'grid'},
+  h('div',{class:'pn s8'},h('h2',{},'Indicators over time'),timeChart(d)),
+  h('div',{class:'pn s4'},h('h2',{},'By severity'),donut(d)),
+  h('div',{class:'pn s4'},h('h2',{},'Top MITRE techniques'),bars(top(r=>(r.mitre||'').split(',')))),
+  h('div',{class:'pn s4'},h('h2',{},'Top affected agents'),bars(top(r=>[r.agent]))),
+  h('div',{class:'pn s4'},h('h2',{},'Verdicts'),bars(top(r=>[r.enriched?r.verdict:'pending']))),
+  h('div',{class:'pn s12'},h('h2',{},'Latest critical and high',h('a',{href:'#indicators',style:'color:var(--ac)'},'View all')),mini(d.filter(r=>['critical','high'].includes(r.severity)).slice(0,6)))))}
+function mini(rows){return h('div',{class:'tw'},h('table',{style:'min-width:640px'},h('tbody',{},rows.map(r=>h('tr',{class:'r',onclick:()=>{sel=r.id;drawer()}},h('td',{},sev(r)),h('td',{class:'m'},r.value.slice(0,40)),h('td',{},r.agent),h('td',{},r.enriched?`${r.verdict} ${r.confidence}%`:'pending'),h('td',{class:'mu'},new Date(r.last_seen).toLocaleString()))))))}
+function timeChart(d){const W=760,H=190,N=24,hr=+$('rng').value,end=Date.now(),span=hr?hr*36e5:Math.max(36e5,end-Math.min(...d.map(r=>+new Date(r.last_seen)),end)),w=span/N;
+ const b=Array.from({length:N},()=>({critical:0,high:0,medium:0,low:0}));d.forEach(r=>{const i=Math.min(N-1,Math.max(0,Math.floor((+new Date(r.last_seen)-(end-span))/w)));if(b[i])b[i][r.severity]++});
+ const mx=Math.max(1,...b.map(x=>SEV.reduce((a,k)=>a+x[k],0))),bw=W/N,svg=s('svg',{viewBox:`0 0 ${W} ${H+20}`,style:'width:100%;height:auto',role:'img','aria-label':'Stacked bar chart of indicators over time by severity'});
+ [0,.5,1].forEach(f=>{const y=H-f*(H-10);svg.append(s('line',{x1:0,x2:W,y1:y,y2:y,stroke:'#2B3640'}))});
+ b.forEach((x,i)=>{let y=H;[...SEV].reverse().forEach(k=>{const ht=x[k]/mx*(H-10);if(ht){y-=ht;svg.append(s('rect',{x:i*bw+2,y,width:bw-4,height:ht,fill:COL[k]}))}})});
+ const t=s('text',{x:0,y:H+15,fill:'#9AABBA','font-size':11});t.textContent=new Date(end-span).toLocaleString();svg.append(t);
+ const t2=s('text',{x:W,y:H+15,fill:'#9AABBA','font-size':11,'text-anchor':'end'});t2.textContent='now';svg.append(t2);return svg}
+function donut(d){const tot=d.length||1,svg=s('svg',{viewBox:'0 0 200 200',style:'width:150px;height:150px;flex:none',role:'img','aria-label':'Severity breakdown'});let off=0;const C=2*Math.PI*70;
+ SEV.forEach(k=>{const n=d.filter(r=>r.severity===k).length,l=n/tot*C;if(n){svg.append(s('circle',{cx:100,cy:100,r:70,fill:'none',stroke:COL[k],'stroke-width':26,'stroke-dasharray':`${l} ${C-l}`,'stroke-dashoffset':-off,transform:'rotate(-90 100 100)'}));off+=l}});
+ const t=s('text',{x:100,y:108,'text-anchor':'middle',fill:'#E8EEF3','font-size':28});t.textContent=String(d.length);svg.append(t);
+ return h('div',{style:'display:flex;gap:16px;align-items:center;flex-wrap:wrap'},svg,h('div',{},SEV.map(k=>h('div',{style:'margin:5px 0'},h('span',{class:'sev '+k,style:'min-width:70px'},k.toUpperCase()),' ',String(d.filter(r=>r.severity===k).length)))))}
+function indicators(){const g=$('gq').value.toLowerCase();
+ let d=win().filter(r=>(!F.sev.size||F.sev.has(r.severity))&&(!F.status||r.status===F.status)&&(!F.type||r.type===F.type)&&(!g||(r.value+r.agent+r.rule_desc).toLowerCase().includes(g)));
+ const ck=h('input',{type:'checkbox','aria-label':'Select all',onchange:e=>{d.forEach(r=>e.target.checked?checked.add(r.id):checked.delete(r.id));render()}});
+ const bulk=async st=>{await Promise.all([...checked].map(i=>api(`/api/iocs/${i}/status`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({status:st})})));checked.clear();load()};
+ const sel2=(opts,val,fn)=>{const e=h('select',{},opts.map(([v,l])=>h('option',{value:v},l)));e.value=val;e.onchange=()=>{fn(e.value);render()};return e};
+ return h('div',{},h('h1',{},'Indicators'),h('div',{class:'mu'},`${d.length} results`),
+ h('div',{class:'tb'},SEV.map(k=>h('button',{class:'chip'+(F.sev.has(k)?' on':''),onclick:()=>{F.sev.has(k)?F.sev.delete(k):F.sev.add(k);render()}},k)),
+  sel2([['open','Status: open'],['','All statuses'],['case','Case'],['blocked','Blocked'],['false_positive','False positive']],F.status,v=>F.status=v),
+  sel2([['','All types'],['ip','IP'],['domain','Domain'],['sha256','SHA-256'],['sha1','SHA-1'],['md5','MD5']],F.type,v=>F.type=v),
+  h('span',{style:'flex:1'}),checked.size?h('span',{class:'mu'},`${checked.size} selected`):null,
+  checked.size?h('button',{onclick:()=>bulk('false_positive')},'Mark false positive'):null,checked.size?h('button',{class:'pri',onclick:()=>bulk('case')},'Open case'):null),
+ h('div',{class:'tw',style:'max-height:calc(100vh - 210px)'},h('table',{},h('thead',{},h('tr',{},h('th',{},ck),...['Severity','Indicator','Type','AI verdict','Confidence','Agent','Hits','Last seen','Status'].map(x=>h('th',{},x)))),
+  h('tbody',{},d.map(r=>{const c=h('input',{type:'checkbox','aria-label':'Select '+r.value,onclick:e=>{e.stopPropagation();e.target.checked?checked.add(r.id):checked.delete(r.id);render()}});c.checked=checked.has(r.id);
+   return h('tr',{class:'r'+(sel===r.id?' sel':''),onclick:()=>{sel=r.id;render()}},h('td',{},c),h('td',{},sev(r)),h('td',{class:'m'},r.value.length>36?r.value.slice(0,34)+'…':r.value),h('td',{},r.type),h('td',{},r.enriched?r.verdict:'pending'),
+    h('td',{},r.enriched?h('span',{},h('span',{class:'bar'},h('i',{style:`width:${r.confidence}%`})),' '+r.confidence+'%'):'—'),h('td',{},r.agent),h('td',{},String(r.count)),h('td',{class:'mu'},new Date(r.last_seen).toLocaleString()),h('td',{},r.status))})))))}
+function drawer(){const d=$('drw'),r=all.find(x=>x.id===sel);d.className='drw'+(r?' open':'');if(!r){d.replaceChildren();return}
+ const set=async st=>{await api(`/api/iocs/${r.id}/status`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({status:st})});load()};
+ d.replaceChildren(h('div',{style:'display:flex;justify-content:space-between;align-items:center'},sev(r),h('button',{onclick:()=>{sel=null;render()},'aria-label':'Close'},'Close')),
+ h('h2',{class:'m',style:'font-size:17px;word-break:break-all'},r.value),h('div',{class:'mu'},`${r.type} · ${r.count} hits · status ${r.status}`),
+ h('div',{class:'box'},h('b',{},r.enriched?`AI verdict: ${r.verdict} (${r.confidence}%)`:'AI verdict: pending'),h('p',{style:'margin:6px 0 0'},r.summary||'Waiting for AI analysis.')),
+ r.action?h('div',{class:'box'},h('b',{},'Recommended action'),h('p',{style:'margin:6px 0 0'},r.action)):null,
+ h('div',{class:'box'},h('b',{},'Wazuh evidence'),h('div',{class:'row'},h('span',{class:'mu'},'Agent'),r.agent),h('div',{class:'row'},h('span',{class:'mu'},'Rule'),`${r.rule_id} (level ${r.level})`),h('div',{class:'row'},h('span',{class:'mu'},'Description'),r.rule_desc),h('div',{class:'row'},h('span',{class:'mu'},'MITRE'),r.mitre||'none'),h('div',{class:'row'},h('span',{class:'mu'},'Last seen'),new Date(r.last_seen).toLocaleString())),
+ h('div',{class:'box m',style:'font-size:12px;word-break:break-all'},r.sample||''),
+ h('div',{class:'acts'},h('button',{class:'pri',onclick:()=>set('blocked')},'Block'),h('button',{onclick:()=>set('case')},'Open case'),h('button',{onclick:()=>set('false_positive')},'False positive')))}
+$('gq').oninput=()=>{if(location.hash!=='#indicators')location.hash='#indicators';else render()};$('rng').onchange=render;window.onhashchange=render;
+$('poll').onclick=async()=>{$('poll').textContent='Polling…';try{await api('/api/poll',{method:'POST'})}catch(e){alert('Poll failed')}$('poll').textContent='Poll Wazuh';load()};
+load();setInterval(load,15000);
+</script></body></html>
