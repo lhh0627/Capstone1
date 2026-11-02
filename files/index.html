@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IOC Console</title>
+<style>
+:root{--bg:#0E1318;--panel:#151C23;--line:#243039;--txt:#E6EDF3;--mut:#93A4B3;--acc:#3DD6C3}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:14px system-ui,sans-serif}
+header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:16px;margin:0}main{padding:20px 24px;display:flex;flex-direction:column;gap:16px;max-width:1400px;margin:auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px}
+.card{padding:14px}.card b{display:block;font-size:26px;margin-top:4px}.card span{color:var(--mut);font-size:12px}
+.bar{display:flex;gap:10px;flex-wrap:wrap}
+input,select,button{min-height:40px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--txt);padding:0 12px;font:inherit}
+input{flex:1 1 240px}button{cursor:pointer}button.p{background:var(--acc);color:#06201C;border:0;font-weight:600}
+.grid{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.tbl{flex:2 1 600px;min-width:0;overflow-x:auto}.det{flex:1 1 320px;padding:16px;display:flex;flex-direction:column;gap:12px}
+table{width:100%;border-collapse:collapse;min-width:680px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #1D2830;white-space:nowrap}
+th{color:var(--mut);font-size:12px}tr.r{cursor:pointer}tr.r:hover,tr.sel{background:#1A242C}
+.sev{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.critical{background:#4A1D1D;color:#FFB4B4}.high{background:#4A3212;color:#FFD2A1}.medium{background:#403A12;color:#F5E08A}.low{background:#16314A;color:#A9D3FF}
+.m{font-family:ui-monospace,Menlo,monospace}.mut{color:var(--mut)}
+.box{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px 12px;line-height:1.5}
+.cf{height:8px;background:var(--bg);border-radius:4px}.cf i{display:block;height:8px;background:var(--acc);border-radius:4px}
+</style></head><body>
+<header><h1>IOC Console</h1><span class="mut" id="sync"></span></header>
+<main>
+<div class="cards" id="cards"></div>
+<div class="bar">
+<input id="q" placeholder="Search indicator, agent, rule">
+<select id="sev"><option value="">Severity: all</option><option>critical</option><option>high</option><option>medium</option><option>low</option></select>
+<select id="st"><option value="open">Status: open</option><option value="">all</option><option value="case">case</option><option value="blocked">blocked</option><option value="false_positive">false positive</option></select>
+<button class="p" id="poll">Poll Wazuh now</button>
+</div>
+<div class="grid">
+<div class="panel tbl"><table><thead><tr><th>Severity</th><th>Indicator</th><th>Type</th><th>AI verdict</th><th>Agent</th><th>Hits</th><th>Last seen</th></tr></thead><tbody id="rows"></tbody></table></div>
+<aside class="panel det" id="det"><span class="mut">Select an indicator.</span></aside>
+</div></main>
+<script>
+const $=id=>document.getElementById(id);let data=[],sel=null;
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+async function api(p,o){const r=await fetch(p,o);if(!r.ok)throw new Error(r.status);return r.json()}
+async function load(){
+ const p=new URLSearchParams({q:$('q').value,severity:$('sev').value,status:$('st').value});
+ data=await api('/api/iocs?'+p);const s=await api('/api/stats');
+ $('cards').replaceChildren(...[['Total IOCs',s.total],['AI-confirmed malicious',s.malicious],['Needs review',s.review],['Agents affected',s.agents],['Awaiting AI',s.pending_ai]].map(([l,v])=>{const d=el('div','card');d.append(el('span',0,l),el('b',0,v));return d}));
+ const tb=$('rows');tb.replaceChildren();
+ data.forEach(r=>{const tr=el('tr','r'+(sel===r.id?' sel':''));
+  const sv=el('td');sv.append(el('span','sev '+r.severity,r.severity.toUpperCase()));
+  tr.append(sv,el('td','m',r.value.length>34?r.value.slice(0,32)+'…':r.value),el('td',0,r.type),
+   el('td',0,r.enriched?`${r.verdict} · ${r.confidence}%`:'pending'),el('td',0,r.agent),el('td',0,r.count),el('td',0,new Date(r.last_seen).toLocaleString()));
+  tr.onclick=()=>{sel=r.id;show(r);load()};tb.append(tr)});
+ $('sync').textContent='Updated '+new Date().toLocaleTimeString();
+ const cur=data.find(r=>r.id===sel);if(cur)show(cur)}
+function show(r){const d=$('det');d.replaceChildren();
+ d.append(el('span','sev '+r.severity,r.severity.toUpperCase()),el('h2','m',r.value));d.lastChild.style.cssText='margin:0;font-size:18px;word-break:break-all';
+ d.append(el('div','mut',`${r.type} · ${r.count} hits · agent ${r.agent} · status ${r.status}`));
+ if(r.enriched){const w=el('div');w.append(el('div','mut','AI confidence '+r.confidence+'%'));const b=el('div','cf');const i=el('i');i.style.width=r.confidence+'%';b.append(i);w.append(b);d.append(w);
+  const s=el('div','box');s.append(el('b',0,'AI summary: '),document.createTextNode(r.summary));d.append(s);
+  const a=el('div','box');a.append(el('b',0,'Suggested action: '),document.createTextNode(r.action));d.append(a)}
+ else d.append(el('div','box mut','Waiting for AI analysis (check ANTHROPIC_API_KEY).'));
+ const e=el('div','box');e.append(el('b',0,'Wazuh evidence'),el('div',0,`Rule ${r.rule_id} (level ${r.level}): ${r.rule_desc}`),el('div','mut','MITRE: '+(r.mitre||'none')),el('div','mut m',r.sample));d.append(e);
+ const bar=el('div','bar');
+ [['Block','blocked'],['Open case','case'],['False positive','false_positive']].forEach(([l,s])=>{const b=el('button',s==='blocked'?'p':'',l);b.onclick=async()=>{await api(`/api/iocs/${r.id}/status`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({status:s})});load()};bar.append(b)});d.append(bar)}
+['q','sev','st'].forEach(i=>$(i).oninput=load);
+$('poll').onclick=async()=>{$('poll').textContent='Polling…';try{await api('/api/poll',{method:'POST'})}catch(e){alert('Poll failed: check Wazuh settings')}$('poll').textContent='Poll Wazuh now';load()};
+load();setInterval(load,15000);
+</script></body></html>
